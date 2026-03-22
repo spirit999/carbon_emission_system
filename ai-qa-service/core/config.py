@@ -1,7 +1,6 @@
 """应用配置：仅从进程环境变量读取（Docker Compose 注入），不使用 .env 文件。"""
 import os
 
-
 class Settings:
     BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://carbon-backend:8080/api")
     LLM_ENABLED = os.getenv("LLM_ENABLED", "true").lower() == "true"

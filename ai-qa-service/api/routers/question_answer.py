@@ -1,4 +1,3 @@
-"""同步问答与健康检查。"""
 from fastapi import APIRouter, HTTPException
 
 from schemas.ask import AskRequest, AskResponse
