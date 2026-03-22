@@ -2,6 +2,20 @@
 
 北京林业大学碳排放核算与管理系统 - 智能问答 RAG 微服务（Python）
 
+## 目录结构
+
+代码直接放在本目录 **`ai-qa-service/`** 根下（不再套一层同名 Python 包）。
+
+| 路径 | 说明 |
+|------|------|
+| `main.py` | ASGI 入口，`create_app()` / `app` |
+| `api/routers/` | HTTP 路由（仅编排） |
+| `services/` | 领域服务（RAG、智谱调用等） |
+| `schemas/` | Pydantic 请求/响应模型 |
+| `core/` | 配置等横切能力 |
+
+路由文件：`question_answer.py`（同步）、`streaming_http.py`（HTTP 分块流式，非 WebSocket）。
+
 ## 功能
 
 - 从主后端 API 获取学校概况、碳排放数据作为上下文
@@ -31,7 +45,7 @@
 cd ai-qa-service
 pip install -r requirements.txt
 export LLM_API_KEY=your-api-key
-uvicorn app:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Docker 部署
@@ -43,4 +57,3 @@ cd docker
 # 创建 .env 并设置 LLM_API_KEY=your-key
 docker-compose up -d --build
 ```
-

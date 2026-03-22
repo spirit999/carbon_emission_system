@@ -1,4 +1,4 @@
-"""RAG 上下文、向量检索、智谱 LLM 调用（与 HTTP 路由解耦）。"""
+"""智能问答领域服务：上下文拉取、向量检索、智谱 GLM 同步/流式调用。"""
 import json
 import logging
 import time

@@ -1,11 +1,11 @@
-"""流式问答（HTTP 分块传输）；与同步问答路由分离，便于独立演进与部署策略。"""
+"""HTTP 分块流式问答（非 WebSocket）。"""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from question_answer.schemas import AskRequest
-from question_answer import service
+from schemas.ask import AskRequest
+from services.qa_service import stream_answer_chunks
 
-router = APIRouter(tags=["stream"])
+router = APIRouter(tags=["streaming-http"])
 
 
 @router.post("/ask/stream")
@@ -14,7 +14,7 @@ def ask_stream(request: AskRequest):
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
     return StreamingResponse(
-        service.stream_answer_chunks(question),
+        stream_answer_chunks(question),
         media_type="text/markdown; charset=utf-8",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

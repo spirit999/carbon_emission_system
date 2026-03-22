@@ -1,4 +1,4 @@
-"""应用配置：仅从进程环境变量读取（Docker Compose 中写死或注入），不使用 .env 文件。"""
+"""应用配置：仅从进程环境变量读取（Docker Compose 注入），不使用 .env 文件。"""
 import os
 
 

@@ -1,7 +1,8 @@
+"""同步问答与健康检查。"""
 from fastapi import APIRouter, HTTPException
 
-from question_answer.schemas import AskRequest, AskResponse
-from question_answer import service
+from schemas.ask import AskRequest, AskResponse
+from services.qa_service import answer_question_sync
 
 router = APIRouter(tags=["question-answer"])
 
@@ -11,7 +12,7 @@ def ask(request: AskRequest) -> AskResponse:
     question = request.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
-    code, data, message = service.answer_question_sync(question)
+    code, data, message = answer_question_sync(question)
     return AskResponse(code=code, data=data, message=message)
 
 
