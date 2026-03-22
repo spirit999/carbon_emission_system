@@ -18,6 +18,7 @@ logs/
 carbon-emission-front/node_modules/
 carbon-emission-front/dist/
 carbon-emission-front/.cache/
+carbon-emission-front/yarn.lock
 
 # ---------- 后端：勿提交 IDE 与构建 ----------
 carbon-emission-backend/.idea/
@@ -33,6 +34,7 @@ carbon-emission-backend/target/
 docker/backend/*.war
 docker/frontend/dist/
 docker/.env
+docker/.env.example
 
 # Temporary files
 *.tmp
