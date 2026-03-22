@@ -22,7 +22,7 @@ services:
       LLM_ENABLED: "true"
       LLM_BASE_URL: https://open.bigmodel.cn/api/paas/v4/chat/completions
       # 部署时请填写智谱开放平台 API Key
-      LLM_API_KEY: "390d9048b4254a2f94de0247c6391c29.NnNDrSOMLPHQKIxu"
+      LLM_API_KEY: ""
       LLM_MODEL: glm-4.5-air
       LLM_MAX_TOKENS: "2048"
       EMBEDDING_ENABLED: "true"
