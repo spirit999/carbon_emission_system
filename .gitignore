@@ -1,0 +1,44 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build outputs
+carbon-emission-backend/target/
+carbon-emission-front/dist/
+carbon-emission-front/node_modules/
+carbon-emission-front/.cache/
+
+# Python
+**/__pycache__/
+*.py[cod]
+*.pyo
+
+# Backend IDE（勿提交个人工作区配置）
+carbon-emission-backend/.idea/
+carbon-emission-backend/.vscode/
+
+# Docker
+docker/backend/*.war
+docker/frontend/dist/
+docker/.env
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# Environment variables
+.env
+.env.local

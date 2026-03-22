@@ -1,0 +1,244 @@
+/* ==================== 全局基础样式 ==================== */
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html *,
+body * {
+  box-sizing: border-box;
+}
+
+.fillcontain {
+  min-height: 100%; /* 改为 min-height，允许内容超出时滚动 */
+  width: 100%;
+  overflow-x: hidden; /* 只隐藏横向滚动条 */
+  overflow-y: auto; /* 允许垂直滚动 */
+  position: relative;
+}
+
+/* ==================== 主容器样式 ==================== */
+.main-box {
+  width: 90%;
+  max-width: 1640px;
+  min-width: 320px; /* 支持移动端最小宽度 */
+  margin: 0 auto;
+  text-align: left;
+  padding: 10px 5%;
+}
+
+/* 响应式：平板和移动端 */
+@media (max-width: 1024px) {
+  .main-box {
+    width: 95%;
+    padding: 10px 2.5%;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-box {
+    width: 100%;
+    padding: 10px 15px;
+  }
+}
+
+.main-box-admin {
+  width: 94%;
+  margin: 0 auto;
+  text-align: left;
+  padding: 5px; /* 统一的紧凑间距 */
+  background-color: #f0f7ed; /* Forest主题背景色 */
+  min-height: auto; /* 移除固定最小高度，由内容自然撑开，防止不必要的滚动条 */
+}
+
+/* 响应式：平板和移动端 */
+@media (max-width: 1024px) {
+  .main-box-admin {
+    width: 98%;
+    padding: 5px 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-box-admin {
+    width: 100%;
+    padding: 5px;
+  }
+}
+
+/* ==================== Header 相关样式 ==================== */
+.avator-img {
+  width: 30px;
+  float: right;
+  margin-top: 15px;
+}
+
+.header-fixed {
+  color: rgb(45, 52, 59);
+  font-weight: 400;
+  background-color: #cdf0c6;
+  line-height: 60px;
+  width: 96%;
+  position: fixed;
+  top: 0;
+  z-index: 100;
+  left: 0;
+  text-align: left;
+  padding: 0 2%;
+  margin-bottom: 60px;
+}
+
+/* 响应式：移动端 Header */
+@media (max-width: 768px) {
+  .header-fixed {
+    width: 100%;
+    padding: 0 10px;
+    line-height: 50px;
+  }
+  
+  .system-name-title {
+    font-size: 18px;
+    margin-left: 10px;
+    margin-top: 15px;
+  }
+}
+
+.user-img-icon {
+  color: #1AC98A;
+  width: 30px;
+  height: 30px;
+  opacity: 0.84;
+  cursor: pointer;
+  font-size: 48px;
+  background-color: #FFFFFF;
+  border-radius: 24px;
+  padding: 4px;
+}
+
+.system-name-title {
+  height: 24px;
+  font-size: 24px;
+  font-family: MicrosoftYaHei-Bold, MicrosoftYaHei;
+  font-weight: bold;
+  color: #FFFFFF;
+  line-height: 24px;
+  display: inline-block;
+  margin-left: 100px;
+  margin-top: 18px;
+}
+
+.flex-box-header {
+  margin-left: 20px;
+  margin-right: 15px;
+  margin-top: 15px;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ==================== 布局样式 ==================== */
+.little-window {
+  width: 78%;
+  float: left;
+}
+
+.big-window {
+  width: 100%;
+  float: left;
+}
+
+/* 响应式：平板和移动端布局 */
+@media (max-width: 1024px) {
+  .little-window {
+    width: 100%;
+    float: none;
+  }
+}
+
+/* ==================== 登录页面样式 ==================== */
+.register-box {
+  margin: 100px auto;
+  padding: 0 30%;
+  width: 40%;
+  min-width: 320px; /* 支持移动端 */
+  max-width: 500px;
+}
+
+/* 响应式：平板和移动端登录 */
+@media (max-width: 768px) {
+  .register-box {
+    width: 90%;
+    padding: 0 5%;
+    margin: 50px auto;
+  }
+}
+
+/* ==================== 个人信息管理 ==================== */
+.information-manage {
+  padding: 0 10%;
+}
+
+.student-information-edit {
+  width: 60%;
+  margin: 0 auto;
+}
+
+/* 响应式：平板和移动端 */
+@media (max-width: 1024px) {
+  .information-manage {
+    padding: 0 5%;
+  }
+  
+  .student-information-edit {
+    width: 90%;
+  }
+}
+
+@media (max-width: 768px) {
+  .information-manage {
+    padding: 0;
+  }
+  
+  .student-information-edit {
+    width: 100%;
+  }
+}
+
+/* ==================== 响应式工具类 ==================== */
+/* 隐藏类：移动端隐藏 */
+@media (max-width: 768px) {
+  .hidden-mobile {
+    display: none !important;
+  }
+}
+
+/* 隐藏类：平板隐藏 */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .hidden-tablet {
+    display: none !important;
+  }
+}
+
+/* 显示类：仅移动端显示 */
+.desktop-only {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+  
+  .mobile-only {
+    display: block !important;
+  }
+}
+
+.mobile-only {
+  display: none;
+}
