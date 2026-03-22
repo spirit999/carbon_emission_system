@@ -1,4 +1,3 @@
-"""HTTP 分块流式问答（非 WebSocket）。"""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
