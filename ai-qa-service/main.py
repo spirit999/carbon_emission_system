@@ -8,7 +8,7 @@ import logging
 
 from fastapi import FastAPI
 
-from api.routers import question_answer, streaming_http
+from api.api import api_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,8 +18,7 @@ logging.basicConfig(
 
 def create_app() -> FastAPI:
     application = FastAPI(title="AI智能问答服务", version="1.0.0")
-    application.include_router(question_answer.router)
-    application.include_router(streaming_http.router)
+    application.include_router(api_router)
     return application
 
 

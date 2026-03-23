@@ -7,16 +7,11 @@ services:
       context: ../ai-qa-service
       dockerfile_inline: |
         FROM python:3.11-slim
-
         WORKDIR /app
-
         COPY requirements.txt .
         RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-
         COPY . .
-
         EXPOSE 8000
-
         CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     image: carbon-ai-qa:latest
     container_name: carbon-ai-qa
@@ -30,7 +25,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       BACKEND_BASE_URL: http://carbon-backend:8080/api
-      # 大模型与向量检索配置直接写在本文件，无需宿主机 .env
+      # 大模型与向量检索配置直接写在本文件
       LLM_ENABLED: "true"
       LLM_BASE_URL: https://open.bigmodel.cn/api/paas/v4/chat/completions
       # 部署时请填写智谱开放平台 API Key

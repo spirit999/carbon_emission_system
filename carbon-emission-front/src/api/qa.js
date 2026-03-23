@@ -34,13 +34,20 @@ export function askQuestionStream(question, onChunk) {
       err.status = response.status;
       throw err;
     }
+    if (!response.body) {
+      throw new Error('流式响应体为空');
+    }
     const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+    const decoder = new TextDecoder('utf-8');
     while (true) {
       const { value, done } = await reader.read();
-      const text = decoder.decode(value, { stream: !done });
+      const text = value ? decoder.decode(value, { stream: true }) : '';
       if (text && onChunk) onChunk(text);
-      if (done) break;
+      if (done) {
+        const tail = decoder.decode();
+        if (tail && onChunk) onChunk(tail);
+        break;
+      }
     }
   });
 }
