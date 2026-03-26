@@ -2,8 +2,8 @@
 
 一个UI精简、优美且前后端分离的碳排放管理系统，可视化管理碳排放数据。
 <br>读研期间接的学校的系统开发项目，不间断上来练练手。<br>
-系统集成了JWT无状态认证、RBAC角色权限校验、数据可视化、文件流导出、线程池异步处理、缓存限流、AOP自定义切面注解、设计模式等最佳实践。
-近期机遇langchain接入了「智能问答」，并根据已有系统数据构建了simple_rag。
+系统集成了JWT无状态认证、RBAC角色权限校验、数据可视化、文件流导出、线程池异步处理、缓存限流、AOP自定义切面注解、设计模式等最佳实践。<br>
+近期基于langchain接入了「智能问答」，并根据已有系统数据构建了simple_rag。
 ![tangif2](https://github.com/user-attachments/assets/5deadc68-dd48-4420-bd11-dea2ec9d3454)
 
 
@@ -46,6 +46,7 @@
 | 技术 | 说明 |
 |------|------|
 | Python 3.11 + FastAPI + Uvicorn | HTTP 服务 |
+| LangChain（langchain-core、langchain-openai） | 提示词模板、Runnable 链；`ChatOpenAI` 走智谱 OpenAI 兼容接口 |
 | RAG + 向量检索（可选） | 接口目录与上下文检索，对接主后端 JSON API |
 | 智谱 GLM / Embedding | 对话与向量（环境变量可配置） |
 
