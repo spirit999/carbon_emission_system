@@ -24,13 +24,17 @@
                   ((item.pending && !item.answerStarted) || thinkingSteps(item).length)
                 "
                 class="qa-thinking qa-thinking--live"
+                :class="{ 'qa-thinking--no-steps': !visibleThinkingSteps(item).length }"
               >
-                <div class="qa-thinking-head">
+                <div
+                  class="qa-thinking-head"
+                  :class="{ 'no-steps': !visibleThinkingSteps(item).length }"
+                >
                   <span class="qa-thinking-pulse" aria-hidden="true" />
-                  <span>正在准备回答</span>
+                  <span>正在思考</span>
                 </div>
-                <ol v-if="thinkingSteps(item).length" class="qa-thinking-steps">
-                  <li v-for="(st, si) in thinkingSteps(item)" :key="'live-' + si" class="qa-thinking-step">
+                <ol v-if="visibleThinkingSteps(item).length" class="qa-thinking-steps">
+                  <li v-for="st in visibleThinkingSteps(item)" :key="'live-' + st.index" class="qa-thinking-step">
                     <span class="qa-thinking-step-title">{{ st.title }}</span>
                     <div class="qa-thinking-step-detail">{{ st.detail }}</div>
                   </li>
@@ -47,7 +51,7 @@
                 >
                   <span class="qa-thinking-toggle-chevron" :class="{ 'is-open': item.thinkingExpanded }" />
                   <span>{{ item.thinkingExpanded ? '收起思考过程' : '查看思考过程' }}</span>
-                  <span class="qa-thinking-meta">{{ thinkingSteps(item).length }} 步</span>
+                  <span class="qa-thinking-meta">{{ visibleThinkingSteps(item).length }} 步</span>
                 </button>
               </div>
               <transition name="qa-thinking-reveal">
@@ -61,8 +65,8 @@
                 >
                   <ol class="qa-thinking-steps">
                     <li
-                      v-for="(st, si) in thinkingSteps(item)"
-                      :key="'fold-' + si"
+                      v-for="st in visibleThinkingSteps(item)"
+                      :key="'fold-' + st.index"
                       class="qa-thinking-step"
                     >
                       <span class="qa-thinking-step-title">{{ st.title }}</span>
@@ -186,6 +190,16 @@ export default {
       const t = item.thinking;
       const steps = t && t.steps;
       return Array.isArray(steps) ? steps : [];
+    },
+    visibleThinkingSteps(item) {
+      const steps = this.thinkingSteps(item);
+      return steps
+        .map((st, idx) => ({
+          index: idx,
+          title: (st && st.title) || '',
+          detail: ((st && st.detail) || '').replace(/^\s*\n+/, '')
+        }))
+        .filter((st) => st.title.trim() || st.detail.trim());
     },
     parseThinkingPayload(raw) {
       if (!raw || typeof raw !== 'string') return null;
@@ -494,11 +508,19 @@ export default {
   background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 5px 5px;
 }
 
 .qa-thinking--live {
   color: #64748b;
+}
+
+.qa-thinking--no-steps {
+  min-height: 25px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  display: flex;
+  align-items: center;
 }
 
 .qa-thinking-head {
@@ -507,9 +529,14 @@ export default {
   gap: 8px;
   font-weight: 600;
   font-size: 12px;
+  line-height: 1.2;
   letter-spacing: 0.02em;
   color: #475569;
-  margin-bottom: 8px;
+  /* margin-bottom: 8px; */
+}
+
+.qa-thinking-head.no-steps {
+  margin-bottom: 0;
 }
 
 .qa-thinking-pulse {
@@ -546,19 +573,16 @@ export default {
 }
 
 .qa-thinking-step-title {
-  display: block;
   font-weight: 600;
   color: #475569;
-  margin-bottom: 0;
-  line-height: 1.35;
+  line-height: 1.28;
 }
 
 .qa-thinking-step-detail {
-  margin: 0;
-  margin-top: 2px;
+  margin-top: 4px;
   padding: 0;
   color: #64748b;
-  line-height: 1.45;
+  line-height: 1.36;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -645,7 +669,7 @@ export default {
 .qa-bubble-content.markdown-body >>> h1,
 .qa-bubble-content.markdown-body >>> h2,
 .qa-bubble-content.markdown-body >>> h3 {
-  margin: 0.2em 0 0.12em;
+  margin: 0.06em 0 0.04em;
   font-weight: 600;
   line-height: 1.28;
 }
@@ -663,13 +687,27 @@ export default {
 }
 
 .qa-bubble-content.markdown-body >>> p {
-  margin: 0.08em 0;
+  margin: 0.04em 0;
   text-align: left;
   line-height: 1.42;
 }
 
 .qa-bubble-content.markdown-body >>> p + p {
-  margin-top: 0.12em;
+  margin-top: 0.08em;
+}
+
+.qa-bubble-content.markdown-body >>> h1 + p,
+.qa-bubble-content.markdown-body >>> h2 + p,
+.qa-bubble-content.markdown-body >>> h3 + p {
+  margin-top: 0.04em;
+}
+
+.qa-bubble-content.markdown-body >>> :first-child {
+  margin-top: 0;
+}
+
+.qa-bubble-content.markdown-body >>> :last-child {
+  margin-bottom: 0;
 }
 
 .qa-bubble-content.markdown-body >>> ul,
