@@ -99,7 +99,7 @@
         />
         <div class="qa-actions">
           <el-button type="primary" :loading="loading" @click="handleSend">
-            {{ loading ? '正在思考…' : '发送' }}
+            {{ loading ? '正在回答…' : '发送' }}
           </el-button>
           <el-button @click="handleClear">清空会话</el-button>
         </div>

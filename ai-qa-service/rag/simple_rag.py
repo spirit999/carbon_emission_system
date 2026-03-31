@@ -921,7 +921,7 @@ def _thinking_selected_endpoints_detail(trace: Dict[str, Any]) -> str:
         eid = (se.get("id") or "").strip() or "unknown"
         path = (se.get("path") or "").strip()
         title = (id_to_title.get(eid) or eid).strip()
-        lines.append(f"{idx}. {title} `{eid}` → `{path}`")
+        lines.append(f"3.2.{idx}. {title} `{eid}` → `{path}`")
     return "\n".join(lines)
 
 
@@ -931,7 +931,7 @@ def _thinking_retrieval_detail(trace: Dict[str, Any]) -> str:
     previews = trace.get("chunks_preview") or []
     parts: List[str] = []
     if isinstance(n, int):
-        parts.append(f"拼装 {n} 条系统数据上下文（chunk）供模型引用。")
+        parts.append(f"拼装历史会话记录及 {n} 条系统数据上下文（chunk）供模型引用。")
     else:
         parts.append("（未统计上下文条数）。")
     return "".join(parts)
@@ -955,10 +955,10 @@ def _thinking_rag_detail(trace: Dict[str, Any]) -> str:
         used_top_k = 3 if fallback_k <= 0 else fallback_k
 
     lines: List[str] = [
-        "1. 向量化",
+        "3.1. 向量化",
         f"   使用嵌入模型 `{settings.EMBEDDING_MODEL}`，将用户问题、系统已有数据接口（关键词）",
         "   进行 embedding 处理，以便进行相似度计算。",
-        "2. topK业务接口召回",
+        "3.2. topK业务接口召回",
         "   使用余弦相似度计算用户问题与系统已有数据接口间的相似度，",
         f"   取最相关的前top{used_top_k}个。",
         f"   本次召回参数：topK = {used_top_k}。",
@@ -971,7 +971,7 @@ def _thinking_rag_detail(trace: Dict[str, Any]) -> str:
     else:
         lines.append("   （未选出候选接口）")
 
-    lines.append("3. topK业务接口调用")
+    lines.append("3.3. topK业务接口调用")
     lines.append("   基于解析入参进行接口调用，")
 
     calls = trace.get("calls") or []
@@ -997,13 +997,13 @@ def _thinking_rag_detail(trace: Dict[str, Any]) -> str:
             if detail and str(detail).strip() and status != "ok":
                 parts.append(f"  备注：{str(detail)[:300]}。")
 
-            lines.append(f"     {idx}. 调用 `{fn}`")
+            lines.append(f"     3.3.{idx}. 调用 `{fn}`")
             for p in parts:
                 lines.append(f"     {p}")
 
     lines.extend(
         [
-            "4. 接口调用结果返回",
+            "3.4. 接口调用结果返回",
             "   将topK接口调用结果数据组装返回，以作为相关知识辅助问答。",
         ]
     )
