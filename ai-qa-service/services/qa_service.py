@@ -84,7 +84,7 @@ def _build_prompt() -> ChatPromptTemplate:
 def _build_rag_chain(streaming: bool = False):
     """构造 RAG + LLM 链：context -> prompt -> LLM -> text。"""
     llm = _build_chat_model(streaming=streaming)
-    prompt = _build_chat_model(streaming=streaming)
+    prompt = _build_prompt()
     return (
         RunnableLambda(
             lambda x: {
@@ -241,11 +241,16 @@ def stream_answer_events(
         return
 
     answer = ""
+    should_emit_done = True
     try:
         for answer_chunk in call_llm_stream(question, context, rounds_for_prompt):
             if answer_chunk:
                 answer += answer_chunk
                 yield _event_line("answer", content=answer_chunk)
+    except GeneratorExit:
+        # 客户端中断连接时，生成器被关闭，不能继续 yield。
+        should_emit_done = False
+        raise
     except httpx.TimeoutException:
         chunk = "\n\n[调用大模型超时，请稍后重试或简化问题。]"
         answer += chunk
@@ -258,5 +263,6 @@ def stream_answer_events(
     finally:
         if answer:
             save_round(store_key, question, answer)
-        yield _event_line("done", session_id=client_sid)
+        if should_emit_done:
+            yield _event_line("done", session_id=client_sid)
 
