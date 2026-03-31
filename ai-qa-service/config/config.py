@@ -27,6 +27,9 @@ class Settings:
     VECTOR_CACHE_TTL = int(os.getenv("VECTOR_CACHE_TTL", "300"))
     QA_MEMORY_ROUNDS = int(os.getenv("QA_MEMORY_ROUNDS", "5"))
     QA_SESSION_DB_PATH = os.getenv("QA_SESSION_DB_PATH", "/tmp/ai_qa_sessions.db")
+    # thinking 流式展示节流，优化thinking 流式体验
+    THINKING_STREAM_MIN_MS = int(os.getenv("THINKING_STREAM_MIN_MS", "1200"))
+    THINKING_STREAM_CHUNK_DELAY_MS = int(os.getenv("THINKING_STREAM_CHUNK_DELAY_MS", "2"))
 
 
 settings = Settings()

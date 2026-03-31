@@ -19,22 +19,29 @@
           <div class="qa-bubble">
             <template v-if="item.role === 'assistant'">
               <div
-                v-if="thinkingSteps(item).length && !item.answerStarted"
+                v-if="
+                  !item.thinkingCompleted &&
+                  ((item.pending && !item.answerStarted) || thinkingSteps(item).length)
+                "
                 class="qa-thinking qa-thinking--live"
+                :class="{ 'qa-thinking--no-steps': !visibleThinkingSteps(item).length }"
               >
-                <div class="qa-thinking-head">
+                <div
+                  class="qa-thinking-head"
+                  :class="{ 'no-steps': !visibleThinkingSteps(item).length }"
+                >
                   <span class="qa-thinking-pulse" aria-hidden="true" />
-                  <span>正在准备回答</span>
+                  <span>正在思考</span>
                 </div>
-                <ol class="qa-thinking-steps">
-                  <li v-for="(st, si) in thinkingSteps(item)" :key="'live-' + si" class="qa-thinking-step">
+                <ol v-if="visibleThinkingSteps(item).length" class="qa-thinking-steps">
+                  <li v-for="st in visibleThinkingSteps(item)" :key="'live-' + st.index" class="qa-thinking-step">
                     <span class="qa-thinking-step-title">{{ st.title }}</span>
                     <div class="qa-thinking-step-detail">{{ st.detail }}</div>
                   </li>
                 </ol>
               </div>
               <div
-                v-if="thinkingSteps(item).length && item.answerStarted"
+                v-if="thinkingSteps(item).length && item.thinkingCompleted"
                 class="qa-thinking-bar"
               >
                 <button
@@ -44,22 +51,22 @@
                 >
                   <span class="qa-thinking-toggle-chevron" :class="{ 'is-open': item.thinkingExpanded }" />
                   <span>{{ item.thinkingExpanded ? '收起思考过程' : '查看思考过程' }}</span>
-                  <span class="qa-thinking-meta">{{ thinkingSteps(item).length }} 步</span>
+                  <span class="qa-thinking-meta">{{ visibleThinkingSteps(item).length }} 步</span>
                 </button>
               </div>
               <transition name="qa-thinking-reveal">
                 <div
                   v-show="
                     thinkingSteps(item).length &&
-                    item.answerStarted &&
+                    item.thinkingCompleted &&
                     item.thinkingExpanded
                   "
                   class="qa-thinking qa-thinking--folded"
                 >
                   <ol class="qa-thinking-steps">
                     <li
-                      v-for="(st, si) in thinkingSteps(item)"
-                      :key="'fold-' + si"
+                      v-for="st in visibleThinkingSteps(item)"
+                      :key="'fold-' + st.index"
                       class="qa-thinking-step"
                     >
                       <span class="qa-thinking-step-title">{{ st.title }}</span>
@@ -92,7 +99,7 @@
         />
         <div class="qa-actions">
           <el-button type="primary" :loading="loading" @click="handleSend">
-            {{ loading ? '正在思考…' : '发送' }}
+            {{ loading ? '正在回答…' : '发送' }}
           </el-button>
           <el-button @click="handleClear">清空会话</el-button>
         </div>
@@ -169,6 +176,7 @@ export default {
       if (role === 'assistant') {
         base.thinking = null;
         base.thinkingExpanded = false;
+        base.thinkingCompleted = false;
         base.answerStarted = false;
       }
       return base;
@@ -183,6 +191,16 @@ export default {
       const steps = t && t.steps;
       return Array.isArray(steps) ? steps : [];
     },
+    visibleThinkingSteps(item) {
+      const steps = this.thinkingSteps(item);
+      return steps
+        .map((st, idx) => ({
+          index: idx,
+          title: (st && st.title) || '',
+          detail: ((st && st.detail) || '').replace(/^\s*\n+/, '')
+        }))
+        .filter((st) => st.title.trim() || st.detail.trim());
+    },
     parseThinkingPayload(raw) {
       if (!raw || typeof raw !== 'string') return null;
       try {
@@ -191,8 +209,58 @@ export default {
       } catch (e) {}
       return { steps: [{ title: '说明', detail: String(raw) }] };
     },
+    parseThinkingStreamInit(raw) {
+      if (!raw || typeof raw !== 'string') return { steps: [] };
+      try {
+        const o = JSON.parse(raw);
+        if (!o || !Array.isArray(o.steps)) return { steps: [] };
+        const steps = o.steps.map(() => ({ title: '', detail: '' }));
+        return { steps };
+      } catch (e) {
+        return { steps: [] };
+      }
+    },
+    parseThinkingChunk(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      try {
+        const o = JSON.parse(raw);
+        const idx = Number(o && o.step_index);
+        const field = o && o.field;
+        const char = o && o.char;
+        if (!Number.isInteger(idx) || idx < 0) return null;
+        if (field !== 'title' && field !== 'detail') return null;
+        if (typeof char !== 'string') return null;
+        return { stepIndex: idx, field, char };
+      } catch (e) {
+        return null;
+      }
+    },
+    applyThinkingChunk(item, chunk) {
+      if (!item || !chunk) return;
+      const t = item.thinking && Array.isArray(item.thinking.steps) ? item.thinking : { steps: [] };
+      while (t.steps.length <= chunk.stepIndex) {
+        t.steps.push({ title: '', detail: '' });
+      }
+      const step = t.steps[chunk.stepIndex];
+      const prev = typeof step[chunk.field] === 'string' ? step[chunk.field] : '';
+      this.$set(step, chunk.field, prev + chunk.char);
+      this.$set(t.steps, chunk.stepIndex, step);
+      this.$set(item, 'thinking', t);
+    },
+    scheduleThinkingUiSync(item) {
+      if (!item) return;
+      if (item._thinkingUiTimer) return;
+      item._thinkingUiTimer = setTimeout(() => {
+        item._thinkingUiTimer = null;
+        this.persistSession();
+        this.scrollToBottom();
+      }, 180);
+    },
     persistSession() {
       try {
+        const now = Date.now();
+        if (this._persistThrottleUntil && now < this._persistThrottleUntil) return;
+        this._persistThrottleUntil = now + 120;
         const payload = {
           sessionId: this.sessionId || '',
           messages: this.messages
@@ -206,7 +274,18 @@ export default {
         if (!raw) return;
         const data = JSON.parse(raw);
         this.sessionId = (data && data.sessionId) || '';
-        this.messages = Array.isArray(data && data.messages) ? data.messages : [];
+        const rawMessages = Array.isArray(data && data.messages) ? data.messages : [];
+        this.messages = rawMessages.map((msg) => {
+          if (!msg || msg.role !== 'assistant') return msg;
+          const normalized = { ...msg };
+          if (typeof normalized.thinkingCompleted !== 'boolean') {
+            normalized.thinkingCompleted = !!(
+              normalized.thinking &&
+              (normalized.answerStarted || !normalized.pending)
+            );
+          }
+          return normalized;
+        });
       } catch (e) {
         this.sessionId = '';
         this.messages = [];
@@ -252,6 +331,28 @@ export default {
           }
           if (event.type === 'thinking' && event.content) {
             this.$set(assistantMessage, 'thinking', this.parseThinkingPayload(event.content));
+            this.$set(assistantMessage, 'thinkingCompleted', true);
+            this.persistSession();
+            this.scrollToBottom();
+            return;
+          }
+          if (event.type === 'thinking_init') {
+            const t = this.parseThinkingStreamInit(event.content);
+            this.$set(assistantMessage, 'thinking', t);
+            this.$set(assistantMessage, 'thinkingCompleted', false);
+            this.persistSession();
+            this.scrollToBottom();
+            return;
+          }
+          if (event.type === 'thinking_chunk') {
+            const chunk = this.parseThinkingChunk(event.content);
+            if (!chunk) return;
+            this.applyThinkingChunk(assistantMessage, chunk);
+            this.scheduleThinkingUiSync(assistantMessage);
+            return;
+          }
+          if (event.type === 'thinking_done') {
+            this.$set(assistantMessage, 'thinkingCompleted', true);
             this.persistSession();
             this.scrollToBottom();
             return;
@@ -269,8 +370,8 @@ export default {
           }
           if (event.type === 'done') {
             assistantMessage.pending = false;
-            if (assistantMessage.thinking && !assistantMessage.answerStarted) {
-              this.$set(assistantMessage, 'answerStarted', true);
+            if (assistantMessage.thinking && !assistantMessage.thinkingCompleted) {
+              this.$set(assistantMessage, 'thinkingCompleted', true);
             }
             this.persistSession();
           }
@@ -290,6 +391,7 @@ export default {
           const th = res.data && res.data.thinking;
           if (th) {
             this.$set(assistantMessage, 'thinking', this.parseThinkingPayload(th));
+            this.$set(assistantMessage, 'thinkingCompleted', true);
             this.$set(assistantMessage, 'answerStarted', true);
           }
         } catch (e2) {
@@ -406,11 +508,19 @@ export default {
   background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 5px 5px;
 }
 
 .qa-thinking--live {
   color: #64748b;
+}
+
+.qa-thinking--no-steps {
+  min-height: 25px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  display: flex;
+  align-items: center;
 }
 
 .qa-thinking-head {
@@ -419,9 +529,14 @@ export default {
   gap: 8px;
   font-weight: 600;
   font-size: 12px;
+  line-height: 1.2;
   letter-spacing: 0.02em;
   color: #475569;
-  margin-bottom: 8px;
+  /* margin-bottom: 8px; */
+}
+
+.qa-thinking-head.no-steps {
+  margin-bottom: 0;
 }
 
 .qa-thinking-pulse {
@@ -458,19 +573,16 @@ export default {
 }
 
 .qa-thinking-step-title {
-  display: block;
   font-weight: 600;
   color: #475569;
-  margin-bottom: 0;
-  line-height: 1.35;
+  line-height: 1.28;
 }
 
 .qa-thinking-step-detail {
-  margin: 0;
-  margin-top: 2px;
+  margin-top: 4px;
   padding: 0;
   color: #64748b;
-  line-height: 1.45;
+  line-height: 1.36;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -557,7 +669,7 @@ export default {
 .qa-bubble-content.markdown-body >>> h1,
 .qa-bubble-content.markdown-body >>> h2,
 .qa-bubble-content.markdown-body >>> h3 {
-  margin: 0.2em 0 0.12em;
+  margin: 0.06em 0 0.04em;
   font-weight: 600;
   line-height: 1.28;
 }
@@ -575,13 +687,27 @@ export default {
 }
 
 .qa-bubble-content.markdown-body >>> p {
-  margin: 0.08em 0;
+  margin: 0.04em 0;
   text-align: left;
   line-height: 1.42;
 }
 
 .qa-bubble-content.markdown-body >>> p + p {
-  margin-top: 0.12em;
+  margin-top: 0.08em;
+}
+
+.qa-bubble-content.markdown-body >>> h1 + p,
+.qa-bubble-content.markdown-body >>> h2 + p,
+.qa-bubble-content.markdown-body >>> h3 + p {
+  margin-top: 0.04em;
+}
+
+.qa-bubble-content.markdown-body >>> :first-child {
+  margin-top: 0;
+}
+
+.qa-bubble-content.markdown-body >>> :last-child {
+  margin-bottom: 0;
 }
 
 .qa-bubble-content.markdown-body >>> ul,

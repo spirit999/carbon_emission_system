@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
@@ -76,20 +77,6 @@ def _build_prompt() -> ChatPromptTemplate:
         "{history}\n"
         "=== 历史对话结束 ===\n\n"
         "用户问题：{question}\n"
-        "请用简体中文、面向学校管理人员，使用 Markdown 格式输出（适当使用 ## 标题、- 列表、**加粗**、`代码` 等），"
-        "结构清晰、便于阅读。"
-    )
-
-def _build_rag_chain(streaming: bool = False):
-    """构造 RAG + LLM 链：context -> prompt -> LLM -> text。"""
-    llm = _build_chat_model(streaming=streaming)
-    prompt = ChatPromptTemplate.from_template(
-        "你是北京林业大学碳排放核算与管理系统的智能助手，只能基于我提供的系统数据进行回答，不要编造没有的数据。"
-        "如果系统数据中没有相关信息，请明确向用户说明。\n\n"
-        "=== 系统数据开始 ===\n"
-        "{context}\n"
-        "=== 系统数据结束 ===\n\n"
-        "用户问题：{question}\n"
         "=== 最近5轮历史对话（仅当与当前问题相关时才结合） ===\n"
         "{history}\n"
         "=== 历史对话结束 ===\n\n"
@@ -97,6 +84,11 @@ def _build_rag_chain(streaming: bool = False):
         "请用简体中文、面向学校管理人员，使用 Markdown 格式输出（适当使用 ## 标题、- 列表、**加粗**、`代码` 等），"
         "结构清晰、便于阅读。"
     )
+
+def _build_rag_chain(streaming: bool = False):
+    """构造 RAG + LLM 链：context -> prompt -> LLM -> text。"""
+    llm = _build_chat_model(streaming=streaming)
+    prompt = _build_prompt()
     return (
         RunnableLambda(
             lambda x: {
@@ -186,6 +178,49 @@ def _event_line(event_type: str, content: str = "", session_id: str = "") -> str
     return json.dumps(payload, ensure_ascii=False) + "\n"
 
 
+def _iter_thinking_stream_events(thinking_json: str):
+    """将 thinking payload 按「步骤字段」拆成流式事件。"""
+    try:
+        payload = json.loads(thinking_json or "{}")
+        raw_steps = payload.get("steps") if isinstance(payload, dict) else []
+    except Exception:
+        raw_steps = []
+    if not isinstance(raw_steps, list):
+        raw_steps = []
+
+    start_ts = time.time()
+    delay_ms = int(getattr(settings, "THINKING_STREAM_CHUNK_DELAY_MS", 0) or 0)
+    min_ms = int(getattr(settings, "THINKING_STREAM_MIN_MS", 0) or 0)
+
+    empty_steps: List[Dict[str, str]] = [{"title": "", "detail": ""} for _ in raw_steps]
+    init_content = json.dumps({"steps": empty_steps}, ensure_ascii=False)
+    yield _event_line("thinking_init", content=init_content)
+
+    for idx, step in enumerate(raw_steps):
+        if not isinstance(step, dict):
+            continue
+        title = str(step.get("title") or "")
+        detail = str(step.get("detail") or "")
+        for ch in title:
+            chunk = {"step_index": idx, "field": "title", "char": ch}
+            yield _event_line("thinking_chunk", content=json.dumps(chunk, ensure_ascii=False))
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+        for ch in detail:
+            chunk = {"step_index": idx, "field": "detail", "char": ch}
+            yield _event_line("thinking_chunk", content=json.dumps(chunk, ensure_ascii=False))
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+
+    # 保证“thinking 从 init 到 done”至少持续 min_ms：避免 UI 内容一瞬间输出完毕无流式体验。
+    if min_ms > 0:
+        elapsed_ms = int((time.time() - start_ts) * 1000)
+        remaining_ms = max(0, min_ms - elapsed_ms)
+        if remaining_ms > 0:
+            time.sleep(remaining_ms / 1000.0)
+    yield _event_line("thinking_done")
+
+
 def stream_answer_events(
     question: str, session_id: Optional[str] = None, user_id: Optional[str] = None
 ):
@@ -197,6 +232,10 @@ def stream_answer_events(
     thinking_json = _thinking_json_from_trace(trace, rounds)
 
     yield _event_line("session", session_id=client_sid)
+    # 后端数据进行分片返回，新协议：thinking_init/thinking_chunk/thinking_done
+    for line in _iter_thinking_stream_events(thinking_json):
+        yield line
+    # 兼容旧前端：保留一次性 thinking 事件
     yield _event_line("thinking", content=thinking_json)
     if not settings.LLM_ENABLED:
         answer = "当前服务未启用大模型（LLM_ENABLED=false），请联系管理员配置。"
@@ -206,11 +245,16 @@ def stream_answer_events(
         return
 
     answer = ""
+    should_emit_done = True
     try:
         for answer_chunk in call_llm_stream(question, context, rounds_for_prompt):
             if answer_chunk:
                 answer += answer_chunk
                 yield _event_line("answer", content=answer_chunk)
+    except GeneratorExit:
+        # 客户端中断连接时，生成器被关闭，不能继续 yield。
+        should_emit_done = False
+        raise
     except httpx.TimeoutException:
         chunk = "\n\n[调用大模型超时，请稍后重试或简化问题。]"
         answer += chunk
@@ -223,5 +267,6 @@ def stream_answer_events(
     finally:
         if answer:
             save_round(store_key, question, answer)
-        yield _event_line("done", session_id=client_sid)
+        if should_emit_done:
+            yield _event_line("done", session_id=client_sid)
 
