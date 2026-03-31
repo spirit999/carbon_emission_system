@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
@@ -173,6 +174,49 @@ def _event_line(event_type: str, content: str = "", session_id: str = "") -> str
     return json.dumps(payload, ensure_ascii=False) + "\n"
 
 
+def _iter_thinking_stream_events(thinking_json: str):
+    """将 thinking payload 按「步骤字段」拆成流式事件。"""
+    try:
+        payload = json.loads(thinking_json or "{}")
+        raw_steps = payload.get("steps") if isinstance(payload, dict) else []
+    except Exception:
+        raw_steps = []
+    if not isinstance(raw_steps, list):
+        raw_steps = []
+
+    start_ts = time.time()
+    delay_ms = int(getattr(settings, "THINKING_STREAM_CHUNK_DELAY_MS", 0) or 0)
+    min_ms = int(getattr(settings, "THINKING_STREAM_MIN_MS", 0) or 0)
+
+    empty_steps: List[Dict[str, str]] = [{"title": "", "detail": ""} for _ in raw_steps]
+    init_content = json.dumps({"steps": empty_steps}, ensure_ascii=False)
+    yield _event_line("thinking_init", content=init_content)
+
+    for idx, step in enumerate(raw_steps):
+        if not isinstance(step, dict):
+            continue
+        title = str(step.get("title") or "")
+        detail = str(step.get("detail") or "")
+        for ch in title:
+            chunk = {"step_index": idx, "field": "title", "char": ch}
+            yield _event_line("thinking_chunk", content=json.dumps(chunk, ensure_ascii=False))
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+        for ch in detail:
+            chunk = {"step_index": idx, "field": "detail", "char": ch}
+            yield _event_line("thinking_chunk", content=json.dumps(chunk, ensure_ascii=False))
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+
+    # 保证“thinking 从 init 到 done”至少持续 min_ms：避免 UI 内容一瞬间输出完毕无流式体验。
+    if min_ms > 0:
+        elapsed_ms = int((time.time() - start_ts) * 1000)
+        remaining_ms = max(0, min_ms - elapsed_ms)
+        if remaining_ms > 0:
+            time.sleep(remaining_ms / 1000.0)
+    yield _event_line("thinking_done")
+
+
 def stream_answer_events(
     question: str, session_id: Optional[str] = None, user_id: Optional[str] = None
 ):
@@ -184,6 +228,10 @@ def stream_answer_events(
     thinking_json = _thinking_json_from_trace(trace, rounds)
 
     yield _event_line("session", session_id=client_sid)
+    # 后端数据进行分片返回，新协议：thinking_init/thinking_chunk/thinking_done
+    for line in _iter_thinking_stream_events(thinking_json):
+        yield line
+    # 兼容旧前端：保留一次性 thinking 事件
     yield _event_line("thinking", content=thinking_json)
     if not settings.LLM_ENABLED:
         answer = "当前服务未启用大模型（LLM_ENABLED=false），请联系管理员配置。"
