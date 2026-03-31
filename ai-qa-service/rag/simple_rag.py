@@ -624,6 +624,10 @@ def fetch_dynamic_chunks(
 
     endpoint_catalog = _endpoint_catalog()
     selected = _choose_endpoints(question, endpoint_catalog, embedding_url=embedding_url, top_k=top_k)
+    used_top_k = top_k if isinstance(top_k, int) else (
+        settings.VECTOR_TOP_K if isinstance(getattr(settings, "VECTOR_TOP_K", None), int) else 3
+    )
+    used_top_k = 3 if used_top_k <= 0 else used_top_k
 
     # 当用户明确提出“月度/月份区间”问题时，强制把 emissionCategory 纳入候选接口
     # （否则只靠接口关键词相似度，可能漏掉唯一的月度分解入口）
@@ -637,6 +641,7 @@ def fetch_dynamic_chunks(
 
     if trace is not None:
         trace["embedding_used"] = bool(embedding_url)
+        trace["used_top_k"] = used_top_k
         trace["question"] = question
         trace["parsed"] = {
             "year_range": year_range,
@@ -846,10 +851,10 @@ def build_thinking_steps_from_rag_trace(trace: Dict[str, Any]) -> List[Dict[str,
     if trace.get("embedding_used"):
         steps.append(
             {
-                "title": "调用 `embed_texts`（向量化）",
+                "title": "topK业务接口召回",
                 "detail": (
-                    f"使用嵌入模型 `{settings.EMBEDDING_MODEL}`，将用户问题与接口目录关键词做相似度匹配，"
-                    f"选出与问题最相关的业务接口后再请求后端。"
+                    f"使用嵌入模型 `{settings.EMBEDDING_MODEL}`，将用户问题与系统已有数据接口关键词做相似度匹配，"
+                    f"选出与用户问题最相关的topK个业务接口"
                 ),
             }
         )
@@ -926,7 +931,7 @@ def _thinking_retrieval_detail(trace: Dict[str, Any]) -> str:
     previews = trace.get("chunks_preview") or []
     parts: List[str] = []
     if isinstance(n, int):
-        parts.append(f"本次共拼装 {n} 条系统数据上下文（chunk）供模型引用。")
+        parts.append(f"拼装 {n} 条系统数据上下文（chunk）供模型引用。")
     else:
         parts.append("（未统计上下文条数）。")
     return "".join(parts)
@@ -942,6 +947,69 @@ def _thinking_history_detail(history_round_count: int) -> str:
     )
 
 
+def _thinking_rag_detail(trace: Dict[str, Any]) -> str:
+    """将 RAG 主步骤展开为固定 4 个小步骤。"""
+    used_top_k = trace.get("used_top_k")
+    if not isinstance(used_top_k, int) or used_top_k <= 0:
+        fallback_k = settings.VECTOR_TOP_K if isinstance(getattr(settings, "VECTOR_TOP_K", None), int) else 3
+        used_top_k = 3 if fallback_k <= 0 else fallback_k
+
+    lines: List[str] = [
+        "1. 向量化",
+        f"   使用嵌入模型 `{settings.EMBEDDING_MODEL}`，将用户问题、系统已有数据接口（关键词）",
+        "   进行 embedding 处理，以便进行相似度计算。",
+        "2. topK业务接口召回",
+        "   使用余弦相似度计算用户问题与系统已有数据接口间的相似度，",
+        f"   取最相关的前top{used_top_k}个。",
+        f"   本次召回参数：topK = {used_top_k}。",
+    ]
+
+    selected_text = _thinking_selected_endpoints_detail(trace)
+    if selected_text.strip():
+        for line in selected_text.splitlines():
+            lines.append(f"     {line}")
+    else:
+        lines.append("   （未选出候选接口）")
+
+    lines.append("3. topK业务接口调用")
+    lines.append("   基于解析入参进行接口调用，")
+
+    calls = trace.get("calls") or []
+    if not calls:
+        lines.append("   （暂无接口调用记录）")
+    else:
+        for idx, c in enumerate(calls, start=1):
+            eid = (c.get("id") or "").strip() or "unknown"
+            fn, purpose = _rag_call_label_for_endpoint(eid)
+            params = c.get("params") if isinstance(c.get("params"), dict) else {}
+            status = (c.get("status") or "").strip()
+            ms = c.get("elapsed_ms")
+            detail = c.get("detail")
+
+            parts: List[str] = [f"  用途：{purpose}。"]
+            if params:
+                parts.append(f"  参数：`{json.dumps(_clean_params(params), ensure_ascii=False)}`。")
+            status_line = _rag_call_status_zh(status)
+            if isinstance(ms, (int, float)):
+                parts.append(f"  状态：{status_line}（约 {int(ms)} ms）。")
+            else:
+                parts.append(f"  状态：{status_line}。")
+            if detail and str(detail).strip() and status != "ok":
+                parts.append(f"  备注：{str(detail)[:300]}。")
+
+            lines.append(f"     {idx}. 调用 `{fn}`")
+            for p in parts:
+                lines.append(f"     {p}")
+
+    lines.extend(
+        [
+            "4. 接口调用结果返回",
+            "   将topK接口调用结果数据组装返回，以作为相关知识辅助问答。",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def build_thinking_payload_from_trace(
     trace: Dict[str, Any],
     history_round_count: int,
@@ -949,11 +1017,10 @@ def build_thinking_payload_from_trace(
     """组装前端 parseThinkingPayload 所需的 JSON 对象（含 steps：title/detail 列表）。"""
     parsed = trace.get("parsed") if isinstance(trace.get("parsed"), dict) else {}
     steps: List[Dict[str, str]] = [
-        {"title": "问题拆解", "detail": _thinking_parsed_detail(parsed)},
+        {"title": "关键入参解析", "detail": _thinking_parsed_detail(parsed)},
         {"title": "历史对话记忆", "detail": _thinking_history_detail(history_round_count)},
-        {"title": "候选业务接口（目录检索）", "detail": _thinking_selected_endpoints_detail(trace)},
+        {"title": "RAG", "detail": _thinking_rag_detail(trace)},
     ]
-    steps.extend(build_thinking_steps_from_rag_trace(trace))
     steps.append({"title": "检索拼装结果", "detail": _thinking_retrieval_detail(trace)})
     return {"steps": steps}
 
